@@ -17,6 +17,7 @@ import portage
 from portage.dep import Atom, use_reduce
 from portage.dep._slot_operator import strip_slots
 from portage.dep.libc import find_libc_deps, strip_libc_deps
+from portage.exception import InvalidDependString
 
 import gentoolkit.pprinter as pp
 from gentoolkit.eclean.exclude import (
@@ -656,15 +657,24 @@ def findPackages(
             binpkg_metadata = dict(zip(keys, bin_dbapi.aux_get(cpv, keys)))
             ebuild_metadata = dict(zip(keys, port_dbapi.aux_get(cpv, keys)))
 
-            if _deps_equal(
-                " ".join(binpkg_metadata[key] for key in dep_keys),
-                binpkg_metadata["EAPI"],
-                " ".join(ebuild_metadata[key] for key in dep_keys),
-                ebuild_metadata["EAPI"],
-                libc_deps,
-                frozenset(binpkg_metadata["USE"].split()),
-            ):
-                continue
+            deps_binpkg = " ".join(binpkg_metadata[key] for key in dep_keys)
+            deps_ebuild = " ".join(ebuild_metadata[key] for key in dep_keys)
+            try:
+                if _deps_equal(
+                    deps_binpkg,
+                    binpkg_metadata["EAPI"],
+                    deps_ebuild,
+                    ebuild_metadata["EAPI"],
+                    libc_deps,
+                    frozenset(binpkg_metadata["USE"].split()),
+                ):
+                    continue
+            except InvalidDependString as er:
+                print(pp.error("findPackages", "InvalidDependString found for: %s" % cpv), file=sys.stderr)
+                print(pp.error("findPackages", "deps_binpkg: %s" % deps_binpkg), file=sys.stderr)
+                print(pp.error("findPackages", "deps_ebuild: %s" % deps_ebuild), file=sys.stderr)
+                print(pp.error(er)
+                exit(1)
 
         if destructive and var_dbapi.cpv_exists(cpv):
             # Exclude if an instance of the package is installed due to
